@@ -288,6 +288,12 @@ def _subito_annuncio(x: dict, provincia: str) -> dict:
     a["comune"] = (g.get("town") or {}).get("value")
     a["provincia"] = (g.get("city") or {}).get("value") or provincia
     a["coord"] = "comune"
+    mappa = g.get("map") or {}
+    if mappa.get("latitude"):
+        # showPin falso: Subito mostra un cerchio attorno alla via, non il civico
+        a["lat"], a["lon"] = float(mappa["latitude"]), float(mappa["longitude"])
+        a["indirizzo"] = mappa.get("address")
+        a["coord"] = "indirizzo" if mappa.get("showPin") else "zona"
     adv = x.get("advertiser") or {}
     a["inserzionista"] = "agenzia" if adv.get("company") else "privato"
     a["inserzionista_nome"] = adv.get("shopName") or adv.get("name") or None

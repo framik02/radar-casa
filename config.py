@@ -11,7 +11,7 @@ SEDE = {"nome": "Extrapola, Via Torconca 17/g", "lat": 43.96196, "lon": 12.73305
 
 PREZZO_MAX = 800
 MQ_MIN = 50
-LOCALI_AMMESSI = {2, 3}          # bilocale o trilocale
+LOCALI_AMMESSI = {2, 3, 4}       # bilocale, trilocale, quadrilocale
 MINUTI_MAX = 60                  # in auto dalla sede
 KM_LINEA_D_ARIA_MAX = 80         # scarto prima di chiedere il percorso
 STAZIONE_COMODA_KM = 1.2         # a piedi in un quarto d'ora

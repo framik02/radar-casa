@@ -10,7 +10,7 @@ from geo import km
 
 NO_DURATA = [
     (r"\btransitori[oa]?\b", "contratto transitorio"),
-    (r"(settembre|ottobre|novembre)\s*(?:a|al|-|–|/|fino\s+a)\s*(maggio|giugno|luglio)",
+    (r"(settembre|ottobre|novembre|dicembre|gennaio)\s*(?:a|ad|al|-|–|/|fino\s+a)\s*(aprile|maggio|giugno|luglio)",
      "solo da autunno a primavera"),
     (r"\bfino\s+(?:a|al(?:la)?\s+fine\s+di)\s+(maggio|giugno|luglio)\b", "libero solo fino all'estate"),
     (r"\bperiodo\s+invernale\b|\binvernal[ei]\b", "solo inverno"),
@@ -35,10 +35,11 @@ SI_DURATA = [
 ]
 
 AVVISI = [
-    (r"quota\s+fissa|servizio\s+di\s+ricerca|non\s+[èe]\s+un'?\s*agenzia|iscrizione\s+al\s+servizio|tessera",
+    (r"soloaffittipay|registrarsi\s+al\s+nostro\s+portale|quota\s+fissa|servizio\s+di\s+ricerca|non\s+[èe]\s+un'?\s*agenzia|iscrizione\s+al\s+servizio|tessera",
      "possibile ufficio a pagamento che vende liste di case"),
     (r"tempo\s+indeterminato|busta\s+paga|referenz", "chiede garanzie di reddito o referenze"),
     (r"no\s+residenza|senza\s+residenza", "senza residenza"),
+    (r"foresteria", "contratto a uso foresteria, intestato a un'azienda"),
     (r"(?:spese|consumi|utenze)\s+inclus", "spese o consumi inclusi"),
     (r"no\s+animali|animali\s+non\s+ammessi", "niente animali"),
     (r"\bstudent[ie]\b", "pensato per studenti"),
@@ -110,10 +111,10 @@ def punteggio(a: dict) -> None:
     elif a["giardino"] in ("si", "comune"):
         p += 8; perche.append("giardino" + (" condominiale" if a["giardino"] == "comune" else ""))
     sk = a.get("stazione_km")
-    if sk is not None and a["coord"] == "indirizzo" and sk <= config.STAZIONE_COMODA_KM:
+    if sk is not None and a["coord"] != "comune" and sk <= config.STAZIONE_COMODA_KM:
         p += 6; perche.append(f"stazione a {sk} km")
         a["treno"] = "comodo"
-    elif sk is not None and a["coord"] != "indirizzo" and sk <= 3:
+    elif sk is not None and a["coord"] == "comune" and sk <= 3:
         p += 2; perche.append(f"stazione di {a['stazione']} nel comune")
         a["treno"] = "nel comune"
     else:
@@ -134,7 +135,7 @@ def punteggio(a: dict) -> None:
 
 # ----------------------------------------------------------------- doppioni
 
-PESO_FONTE = {"casa": 3, "immobiliare": 2, "subito": 1}  # chi ha la descrizione intera
+PESO_FONTE = {"casa": 3, "immobiliare": 2, "subito": 2, "idealista": 1, "bakeca": 0}  # chi ha la descrizione intera
 
 
 def _ricchezza(a: dict) -> tuple:

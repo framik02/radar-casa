@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -66,6 +67,51 @@ def geocodifica_comuni(annunci: list[dict]) -> None:
             a["lat"], a["lon"] = cache[chiave]
     if cambiato:
         _salva("comuni.json", cache)
+
+
+VIA = re.compile(
+    r"\b((?:via|viale|v\.le|piazza|p\.zza|piazzale|corso|largo|vicolo|strada|lungomare)"
+    r"\s+[A-ZÀ-Ú0-9][\w'À-ú\.]*(?:\s+(?:[A-ZÀ-Ú0-9][\w'À-ú\.]*|d[ei]|del|della|dei|degli|delle|di|da|e)){0,4})",
+    re.I)
+
+
+def indirizzi_dal_testo(annunci: list[dict]) -> None:
+    """Se manca la via, la cerca nel testo e la geocodifica dentro il comune.
+
+    Si accetta solo un risultato che cade entro 8 km dal centro del comune,
+    cosi' una "via Roma" non finisce in un'altra citta'.
+    """
+    cache = _carica("vie.json")
+    comuni = _carica("comuni.json")
+    cambiato = False
+    for a in annunci:
+        if a["coord"] in ("indirizzo", "zona") or not a["comune"]:
+            continue
+        m = VIA.search(f"{a['titolo']} . {a['descrizione']}")
+        if not m:
+            continue
+        via = re.sub(r"\s+", " ", m.group(1)).strip(" .")
+        if len(via.split()) < 2 or via.lower().split()[1] in ("mare", "centro", "email", "whatsapp", "sms"):
+            continue
+        chiave = f"{via}|{a['comune']}|{a['provincia'] or ''}"
+        if chiave not in cache:
+            q = urllib.parse.urlencode({"street": via, "city": a["comune"], "county": a["provincia"] or "",
+                                        "country": "Italia", "format": "json", "limit": 1})
+            try:
+                r = _json("https://nominatim.openstreetmap.org/search?" + q)
+                cache[chiave] = [float(r[0]["lat"]), float(r[0]["lon"])] if r else None
+            except Exception as e:
+                log.warning("nominatim via %s: %s", chiave, e)
+                continue
+            cambiato = True
+            time.sleep(1.1)
+        c, centro = cache.get(chiave), comuni.get(f"{a['comune']}|{a['provincia'] or ''}")
+        if c and (not centro or km(c[0], c[1], centro[0], centro[1]) <= 8):
+            a["lat"], a["lon"] = c
+            a["indirizzo"] = f"{via} (dal testo)"
+            a["coord"] = "testo"
+    if cambiato:
+        _salva("vie.json", cache)
 
 
 # ---------------------------------------------------------------- percorsi

@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import config
 import cripta
 import fonti
+import fonti_protette
 import geo
 import regole
 
@@ -44,7 +45,8 @@ def raccogli(solo_subito: bool) -> tuple[list[dict], dict]:
         return grezzi, esiti
     from camoufox.sync_api import Camoufox
     with Camoufox(headless=True, humanize=True, locale="it-IT", os="windows") as browser:
-        for nome, fn in (("immobiliare", fonti.immobiliare), ("casa", fonti.casa)):
+        for nome, fn in (("immobiliare", fonti.immobiliare), ("casa", fonti.casa),
+                         ("idealista", fonti_protette.idealista), ("bakeca", fonti_protette.bakeca)):
             pagina = browser.new_page()
             try:
                 a, e = fn(pagina)
@@ -91,6 +93,10 @@ def main() -> None:
         vivi.append(a)
 
     geo.geocodifica_comuni(vivi)
+    # la via dal testo solo per chi ha gia' passato i filtri economici:
+    # una richiesta a Nominatim al secondo, non va sprecata
+    geo.indirizzi_dal_testo([a for a in vivi if (a["prezzo"] or 9999) <= config.PREZZO_MAX
+                             and not (a["mq"] and a["mq"] < config.MQ_MIN)])
     geo.tempi_in_auto(vivi)
     try:
         staz = geo.stazioni()
