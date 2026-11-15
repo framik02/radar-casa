@@ -323,7 +323,7 @@ function scheda(a){
     ["Stato", a.stato_immobile ?? "non indicato"], ["Disponibilità", a.disponibilita ?? "non indicata"],
     ["Tipologia", a.tipologia ?? ""], ["Pubblicato", a.pubblicato ? fmtData(a.pubblicato) : "visto il " + fmtData(a.primo_visto)],
   ];
-  return `<article class="card ${s || ""} ${selezionato === a.id ? "sel" : ""}" id="c-${CSS.escape(a.id)}">
+  return `<article class="card ${s || ""} ${selezionato === a.id ? "sel" : ""}" id="c-${esc(a.id)}">
     ${foto}
     <div class="corpo">
       <div class="testa">
@@ -341,7 +341,7 @@ function scheda(a){
         ${telefoni.length ? telefoni.map(t => `<a class="tel" href="tel:${esc(t.replace(/\s/g, ""))}">${esc(t)}</a>`).join(" · ") : `<div>Telefono non pubblico: contatto dal sito o dall'app.</div>`}
         <div style="margin-top:6px">Fonte: ${fonti.map(f => `<a href="${esc(f.url)}" target="_blank" rel="noopener">${NOMI_FONTE[f.fonte] || f.fonte}</a>${f.inserzionista_nome && f !== fonti[0] ? " (" + esc(f.inserzionista_nome) + ")" : ""}`).join(" · ")}</div>
       </div>
-      <div class="desc" id="d-${CSS.escape(a.id)}">${esc(a.descrizione || "Nessuna descrizione.")}</div>
+      <div class="desc" id="d-${esc(a.id)}">${esc(a.descrizione || "Nessuna descrizione.")}</div>
       ${(a.descrizione || "").length > 280 ? `<button class="altro" data-desc="${esc(a.id)}">Leggi tutto</button>` : ""}
       ${a.descrizione_parziale ? `<div class="perche">Descrizione ridotta: ${NOMI_FONTE[a.fonte] || a.fonte} mostra il testo completo solo aprendo l'annuncio.</div>` : ""}
       ${a.caratteristiche && a.caratteristiche.length ? `<div class="perche" style="margin-top:6px">Caratteristiche: ${esc(a.caratteristiche.join(", "))}</div>` : ""}
