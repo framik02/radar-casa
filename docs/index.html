@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Radar casa</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --bg:#f6f5f1; --card:#ffffff; --ink:#1d1d1b; --muted:#6b6a64; --line:#e3e1da;
+  --blu:#2357c6; --blu-soft:#e8eefb; --ocra:#c98a12; --ocra-soft:#fbf1dc;
+  --verde:#2f7d4f; --verde-soft:#e4f2e9; --rosso:#b4412f; --rosso-soft:#f8e6e2;
+  --prugna:#7a3f78;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--blu)}
+#blocco{display:flex;align-items:center;justify-content:center;min-height:100%;padding:16px}
+#blocco form{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px;max-width:360px;width:100%}
+#blocco h1{margin:0 0 6px;font-size:22px}
+#blocco p{margin:0 0 16px;color:var(--muted)}
+#blocco input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:10px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 12px;cursor:pointer}
+.btn.pri{background:var(--blu);border-color:var(--blu);color:#fff}
+.err{color:var(--rosso);min-height:20px}
+#app{display:none;height:100%;flex-direction:column}
+header{padding:10px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.riga1{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.riga1 h1{font-size:19px;margin:0}
+.meta{color:var(--muted);font-size:13px}
+.ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--card);padding:6px 10px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--blu);color:#fff}
+.chk{display:flex;align-items:center;gap:4px;font-size:14px;white-space:nowrap}
+select,input[type=search]{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--card)}
+input[type=search]{min-width:150px;flex:1}
+main{flex:1;display:flex;min-height:0}
+#mappa{flex:1;min-width:0}
+#lista{width:min(620px,48%);overflow-y:auto;padding:12px 16px 40px;border-left:1px solid var(--line)}
+.tabs{display:none}
+.vuoto{color:var(--muted);padding:30px 0;text-align:center}
+.sez{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.card.sel{outline:2px solid var(--blu)}
+.card.tieni{border-color:var(--verde)}
+.card.scarta{opacity:.6}
+.foto{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:2px;background:#ddd;height:210px}
+.foto img{height:210px;width:auto;max-width:92%;object-fit:cover;scroll-snap-align:start;flex:none;background:#eee}
+.nofoto{height:60px;display:flex;align-items:center;justify-content:center;color:var(--muted);background:#efeee9}
+.corpo{padding:12px 14px}
+.testa{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.prezzo{font-size:22px;font-weight:700;white-space:nowrap}
+.prezzo small{font-size:13px;font-weight:400;color:var(--muted)}
+.titolo{font-weight:600;margin:2px 0}
+.dove{color:var(--muted);font-size:14px}
+.badge{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 8px;margin:0 4px 4px 0}
+.b-nuovo{background:var(--ocra-soft);color:#8a5d06}
+.b-si{background:var(--verde-soft);color:var(--verde)}
+.b-chiedere{background:var(--blu-soft);color:var(--blu)}
+.b-avviso{background:var(--rosso-soft);color:var(--rosso)}
+.b-giardino{background:var(--verde-soft);color:var(--verde)}
+.b-treno{background:#efe4ef;color:var(--prugna)}
+.b-off{background:#eee;color:#555}
+.griglia{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px 12px;margin:10px 0;font-size:14px}
+.griglia div span{color:var(--muted);display:block;font-size:12px}
+.auto{font-size:15px;margin:8px 0}
+.auto b{font-size:17px}
+.perche{font-size:13px;color:var(--muted)}
+.contatti{margin:10px 0;padding:10px;background:#f7f6f2;border-radius:8px;font-size:14px}
+.contatti .tel{font-size:17px;font-weight:700;text-decoration:none}
+.desc{white-space:pre-wrap;font-size:14px;margin:8px 0;max-height:7.5em;overflow:hidden;position:relative}
+.desc.aperta{max-height:none}
+.altro{background:none;border:0;color:var(--blu);padding:0;cursor:pointer;font-size:14px}
+.azioni{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.azioni .tieni.on{background:var(--verde);border-color:var(--verde);color:#fff}
+.azioni .scarta.on{background:var(--rosso);border-color:var(--rosso);color:#fff}
+.nota{width:100%;margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-height:36px;resize:vertical}
+.pop{width:220px}
+.pop img{width:100%;height:130px;object-fit:cover;border-radius:6px;display:block;margin-bottom:6px}
+.pop b{font-size:16px}
+.leaflet-popup-content{margin:10px 12px}
+.sede-ico{background:var(--ink);color:#fff;border-radius:6px;font-weight:700;font-size:11px;padding:2px 5px;white-space:nowrap;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+dialog{border:1px solid var(--line);border-radius:12px;max-width:440px;width:calc(100% - 32px)}
+dialog input{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px}
+dialog p{font-size:14px;color:var(--muted)}
+.fonti span{margin-right:10px}
+@media (max-width:820px){
+  #lista{width:100%;border-left:0;padding:10px 12px 70px}
+  main{position:relative}
+  #mappa{position:absolute;inset:0}
+  body[data-tab=lista] #mappa{visibility:hidden}
+  body[data-tab=mappa] #lista{display:none}
+  .tabs{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);z-index:1000;padding-bottom:env(safe-area-inset-bottom)}
+  .tabs button{flex:1;border:0;background:none;padding:12px;font-weight:600}
+  .tabs button.on{color:var(--blu)}
+  .foto,.foto img{height:190px}
+  header{padding:8px 12px}
+  .ctrl{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+  .ctrl > *{flex:none}
+  input[type=search]{min-width:170px}
+  .meta .fonti-det{display:none}
+  .seg button{padding:6px 8px;font-size:14px}
+}
+</style>
+</head>
+<body data-tab="lista">
+
+<div id="blocco">
+  <form id="f-chiave">
+    <h1>Radar casa</h1>
+    <p>Gli annunci sono cifrati. Scrivi la frase segreta, il browser la ricorda.</p>
+    <input id="chiave" type="password" autocomplete="current-password" placeholder="frase segreta" required>
+    <div class="err" id="err"></div>
+    <button class="btn pri" type="submit">Apri</button>
+  </form>
+</div>
+
+<div id="app">
+  <header>
+    <div class="riga1">
+      <h1>Radar casa</h1>
+      <span class="meta" id="meta"></span>
+      <button class="btn" id="b-imp" style="margin-left:auto">Sincronizza</button>
+    </div>
+    <div class="ctrl">
+      <div class="seg" id="seg">
+        <button data-v="aperti" class="on">Da valutare</button>
+        <button data-v="tieni">Tenuti</button>
+        <button data-v="scarta">Scartati</button>
+        <button data-v="tutti">Tutti</button>
+      </div>
+      <select id="ordine" aria-label="Ordina">
+        <option value="punteggio">Priorità</option>
+        <option value="minuti">Più vicini</option>
+        <option value="prezzo">Prezzo</option>
+        <option value="recenti">Più recenti</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="f-giardino"> giardino</label>
+      <label class="chk"><input type="checkbox" id="f-treno"> treno</label>
+      <label class="chk"><input type="checkbox" id="f-durata"> 12 mesi certi</label>
+      <label class="chk"><input type="checkbox" id="f-privati"> privati</label>
+      <input type="search" id="cerca" placeholder="Cerca comune o parola">
+    </div>
+  </header>
+  <main>
+    <div id="mappa"></div>
+    <section id="lista"></section>
+  </main>
+  <nav class="tabs">
+    <button data-t="lista" class="on">Lista</button>
+    <button data-t="mappa">Mappa</button>
+  </nav>
+</div>
+
+<dialog id="d-imp">
+  <form method="dialog">
+    <h3 style="margin-top:0">Sincronizzare le scelte</h3>
+    <p>Tieni e scarta si salvano in questo browser. Per averli uguali sul telefono e sul PC
+      incolla un token GitHub con permesso di scrittura sui contenuti del solo repository
+      radar-casa. Resta in questo browser.</p>
+    <input id="token" type="password" placeholder="github_pat_...">
+    <p id="stato-sync"></p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" value="annulla">Chiudi</button>
+      <button class="btn pri" id="salva-token" value="ok">Salva</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const REPO = "framik02/radar-casa", PERCORSO = "docs/decisioni.json";
+const $ = s => document.querySelector(s);
+const ls = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const NOMI_FONTE = {immobiliare:"Immobiliare.it", casa:"Casa.it", subito:"Subito.it"};
+
+let D = null, decisioni = {}, vista = "aperti", selezionato = null, mappa, strato, marker = {}, sogliaNuovo = "";
+
+async function decifra(frase){
+  const r = await fetch("dati.enc?t=" + Date.now(), {cache:"no-store"});
+  if (!r.ok) throw new Error("dati non trovati");
+  const e = await r.json();
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(frase), "PBKDF2", false, ["deriveKey"]);
+  const k = await crypto.subtle.deriveKey({name:"PBKDF2", hash:"SHA-256", salt:b64(e.salt), iterations:e.iter},
+    base, {name:"AES-GCM", length:256}, false, ["decrypt"]);
+  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64(e.iv)}, k, b64(e.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+async function apri(frase, silenzioso){
+  try {
+    D = await decifra(frase);
+  } catch (e) {
+    if (!silenzioso) $("#err").textContent = e.message === "dati non trovati" ? "Dati non ancora pubblicati." : "Frase sbagliata.";
+    return;
+  }
+  ls.set("radar-chiave", frase);
+  if (location.hash) history.replaceState(null, "", location.pathname);
+  $("#blocco").style.display = "none";
+  $("#app").style.display = "flex";
+  const prima = ls.get("radar-ultima-visita", "");
+  const quattordiciOre = new Date(new Date(D.aggiornato).getTime() - 14 * 3600e3).toISOString().slice(0, 19);
+  sogliaNuovo = prima && prima < quattordiciOre ? prima : quattordiciOre;
+  ls.set("radar-ultima-visita", D.aggiornato);
+  decisioni = ls.get("radar-decisioni", {});
+  initMappa();
+  disegna();
+  caricaRemote();
+}
+
+/* ---------- decisioni ---------- */
+function decisione(a){
+  let best = null;
+  for (const id of a.ids || [a.id]) { const d = decisioni[id]; if (d && (!best || d.t > best.t)) best = d; }
+  return best || {};
+}
+function decidi(a, campo, valore){
+  const d = Object.assign({}, decisione(a), {[campo]: valore, t: Date.now()});
+  for (const id of a.ids || [a.id]) decisioni[id] = d;
+  ls.set("radar-decisioni", decisioni);
+  disegna();
+  pianificaSync();
+}
+async function caricaRemote(){
+  try {
+    const r = await fetch("decisioni.json?t=" + Date.now(), {cache:"no-store"});
+    if (!r.ok) return;
+    const remote = await r.json();
+    let cambiato = false;
+    for (const [id, d] of Object.entries(remote)) {
+      if (!decisioni[id] || d.t > decisioni[id].t) { decisioni[id] = d; cambiato = true; }
+    }
+    if (cambiato) { ls.set("radar-decisioni", decisioni); disegna(); }
+  } catch {}
+}
+let timerSync;
+function pianificaSync(){ if (ls.get("radar-token", "")) { clearTimeout(timerSync); timerSync = setTimeout(sync, 1500); } }
+async function sync(){
+  const token = ls.get("radar-token", "");
+  if (!token) return;
+  const api = `https://api.github.com/repos/${REPO}/contents/${PERCORSO}`;
+  const h = {Authorization: "Bearer " + token, Accept: "application/vnd.github+json"};
+  try {
+    let sha, remote = {};
+    const g = await fetch(api + "?ref=main&t=" + Date.now(), {headers: h, cache: "no-store"});
+    if (g.ok) {
+      const j = await g.json(); sha = j.sha;
+      remote = JSON.parse(new TextDecoder().decode(b64(j.content.replace(/\n/g, ""))));
+    }
+    for (const [id, d] of Object.entries(remote)) if (!decisioni[id] || d.t > decisioni[id].t) decisioni[id] = d;
+    ls.set("radar-decisioni", decisioni);
+    const testo = JSON.stringify(decisioni);
+    const content = btoa(String.fromCharCode(...new TextEncoder().encode(testo)));
+    const p = await fetch(api, {method: "PUT", headers: h, body: JSON.stringify({message: "Aggiorna scelte", content, sha, branch: "main"})});
+    $("#stato-sync").textContent = p.ok ? "Ultima sincronizzazione riuscita alle " + new Date().toLocaleTimeString("it-IT") : "Sincronizzazione fallita (" + p.status + ")";
+  } catch (e) { $("#stato-sync").textContent = "Sincronizzazione fallita: " + e.message; }
+}
+
+/* ---------- filtri ---------- */
+function visibili(){
+  const q = $("#cerca").value.trim().toLowerCase();
+  let L = D.annunci.filter(a => {
+    const s = decisione(a).s;
+    if (vista === "aperti" && s) return false;
+    if (vista === "tieni" && s !== "tieni") return false;
+    if (vista === "scarta" && s !== "scarta") return false;
+    if ($("#f-giardino").checked && !a.giardino) return false;
+    if ($("#f-treno").checked && !a.treno) return false;
+    if ($("#f-durata").checked && a.durata !== "si") return false;
+    if ($("#f-privati").checked && a.inserzionista !== "privato") return false;
+    if (q && !`${a.titolo} ${a.comune} ${a.zona} ${a.descrizione}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const o = $("#ordine").value;
+  const cmp = {
+    punteggio: (x, y) => y.punteggio - x.punteggio,
+    minuti: (x, y) => x.minuti_auto - y.minuti_auto,
+    prezzo: (x, y) => x.prezzo - y.prezzo,
+    recenti: (x, y) => (y.pubblicato || y.primo_visto).localeCompare(x.pubblicato || x.primo_visto),
+  }[o];
+  L.sort(cmp);
+  const nuovi = L.filter(nuovo), vecchi = L.filter(a => !nuovo(a));
+  return {nuovi, vecchi, tutti: L};
+}
+const nuovo = a => a.primo_visto >= sogliaNuovo;
+
+/* ---------- lista ---------- */
+function fmtData(s){ if (!s) return ""; const d = new Date(s.replace(" ", "T")); return d.toLocaleDateString("it-IT", {day:"numeric", month:"short"}) + " " + d.toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"}); }
+function sino(v){ return v === true ? "sì" : v === false ? "no" : "non indicato"; }
+
+function scheda(a){
+  const d = decisione(a), s = d.s;
+  const foto = a.foto.length
+    ? `<div class="foto">${a.foto.map((f, i) => `<img loading="lazy" src="${esc(f)}" alt="foto ${i + 1}" referrerpolicy="no-referrer" onerror="this.remove()">`).join("")}</div>`
+    : `<div class="nofoto">Nessuna foto</div>`;
+  const badge = [
+    nuovo(a) ? `<span class="badge b-nuovo">nuovo</span>` : "",
+    a.durata === "si" ? `<span class="badge b-si">12 mesi: ${esc(a.durata_motivo)}</span>` : `<span class="badge b-chiedere">durata: ${esc(a.durata_motivo)}</span>`,
+    a.giardino ? `<span class="badge b-giardino">giardino${a.giardino === "privato" ? " privato" : a.giardino === "comune" ? " condominiale" : ""}</span>` : "",
+    a.treno ? `<span class="badge b-treno">${a.treno === "comodo" ? "stazione " + esc(a.stazione) + " a " + a.stazione_km + " km" : "stazione " + esc(a.stazione) + " nel comune"}</span>` : "",
+    a.online === false ? `<span class="badge b-off">non più visto online</span>` : "",
+    ...(a.avvisi || []).map(x => `<span class="badge b-avviso">${esc(x)}</span>`),
+  ].join("");
+  const fonti = [{fonte: a.fonte, url: a.url, telefono: a.telefono, inserzionista_nome: a.inserzionista_nome}, ...(a.altre_fonti || [])];
+  const telefoni = [...new Set(fonti.flatMap(f => (f.telefono || "").split(",").map(t => t.trim()).filter(Boolean)))];
+  const posizione = a.coord === "indirizzo" ? (a.indirizzo || "indirizzo sul sito") : a.coord === "zona" ? "zona indicativa" : "solo il comune, posizione al centro del paese";
+  const campi = [
+    ["Superficie", a.mq ? a.mq + " m²" : "non indicata"], ["Locali", a.locali ?? "non indicati"],
+    ["Bagni", a.bagni ?? "non indicati"], ["Piano", a.piano ?? "non indicato"],
+    ["Ascensore", sino(a.ascensore)], ["Arredato", sino(a.arredato)],
+    ["Posto auto", a.posto_auto ? "sì" : "non indicato"], ["Balcone o terrazzo", a.balcone || a.terrazzo ? "sì" : "non indicato"],
+    ["Riscaldamento", a.riscaldamento ?? "non indicato"], ["Classe energetica", a.classe_energetica ?? "non indicata"],
+    ["Stato", a.stato_immobile ?? "non indicato"], ["Disponibilità", a.disponibilita ?? "non indicata"],
+    ["Tipologia", a.tipologia ?? ""], ["Pubblicato", a.pubblicato ? fmtData(a.pubblicato) : "visto il " + fmtData(a.primo_visto)],
+  ];
+  return `<article class="card ${s || ""} ${selezionato === a.id ? "sel" : ""}" id="c-${CSS.escape(a.id)}">
+    ${foto}
+    <div class="corpo">
+      <div class="testa">
+        <div>
+          <div class="titolo">${esc(a.titolo)}</div>
+          <div class="dove">${esc(a.comune || "")}${a.zona ? ", " + esc(a.zona) : ""} · ${esc(posizione)}</div>
+        </div>
+        <div class="prezzo">${a.prezzo} €<small>/mese</small>${a.spese ? `<br><small>+ ${a.spese} € spese</small>` : ""}</div>
+      </div>
+      <div class="auto"><b>${a.minuti_auto} min</b> in auto dall'ufficio, ${a.km_auto} km${a.stazione ? ` · stazione più vicina ${esc(a.stazione)} (${a.stazione_km} km in linea d'aria${a.coord === "indirizzo" ? "" : ", indicativo"})` : ""}</div>
+      <div>${badge}</div>
+      <div class="griglia">${campi.map(([k, v]) => `<div><span>${k}</span>${esc(v)}</div>`).join("")}</div>
+      <div class="contatti">
+        <div><b>${a.inserzionista === "privato" ? "Privato" : "Agenzia"}</b>${a.inserzionista_nome ? ", " + esc(a.inserzionista_nome) : ""}</div>
+        ${telefoni.length ? telefoni.map(t => `<a class="tel" href="tel:${esc(t.replace(/\s/g, ""))}">${esc(t)}</a>`).join(" · ") : `<div>Telefono non pubblico: contatto dal sito o dall'app.</div>`}
+        <div style="margin-top:6px">Fonte: ${fonti.map(f => `<a href="${esc(f.url)}" target="_blank" rel="noopener">${NOMI_FONTE[f.fonte] || f.fonte}</a>${f.inserzionista_nome && f !== fonti[0] ? " (" + esc(f.inserzionista_nome) + ")" : ""}`).join(" · ")}</div>
+      </div>
+      <div class="desc" id="d-${CSS.escape(a.id)}">${esc(a.descrizione || "Nessuna descrizione.")}</div>
+      ${(a.descrizione || "").length > 280 ? `<button class="altro" data-desc="${esc(a.id)}">Leggi tutto</button>` : ""}
+      ${a.descrizione_parziale ? `<div class="perche">Su Immobiliare.it la descrizione completa si legge solo aprendo l'annuncio.</div>` : ""}
+      ${a.caratteristiche && a.caratteristiche.length ? `<div class="perche" style="margin-top:6px">Caratteristiche: ${esc(a.caratteristiche.join(", "))}</div>` : ""}
+      <div class="perche" style="margin-top:6px">In questa posizione per: ${esc(a.perche.join(", "))}</div>
+      <div class="azioni">
+        <button class="btn tieni ${s === "tieni" ? "on" : ""}" data-az="tieni" data-id="${esc(a.id)}">Tieni</button>
+        <button class="btn scarta ${s === "scarta" ? "on" : ""}" data-az="scarta" data-id="${esc(a.id)}">Scarta</button>
+        ${s ? `<button class="btn" data-az="" data-id="${esc(a.id)}">Rimetti da valutare</button>` : ""}
+        <button class="btn" data-mappa="${esc(a.id)}">Sulla mappa</button>
+      </div>
+      <textarea class="nota" data-nota="${esc(a.id)}" placeholder="Note: chiamato, visita fissata...">${esc(d.nota || "")}</textarea>
+    </div>
+  </article>`;
+}
+
+function disegna(){
+  const {nuovi, vecchi, tutti} = visibili();
+  const conta = v => D.annunci.filter(a => { const s = decisione(a).s; return v === "aperti" ? !s : v === "tutti" ? true : s === v; }).length;
+  document.querySelectorAll("#seg button").forEach(b => { b.textContent = b.textContent.replace(/ \(\d+\)$/, "") + ` (${conta(b.dataset.v)})`; b.classList.toggle("on", b.dataset.v === vista); });
+  const fonti = Object.entries(D.fonti).map(([k, v]) => `${NOMI_FONTE[k] || k} ${v.bloccata ? "bloccata" : v.annunci}`).join(", ");
+  $("#meta").innerHTML = `aggiornato ${fmtData(D.aggiornato)} · ${D.annunci.length} annunci<span class="fonti-det"> · ${esc(fonti)}</span>`;
+  let h = "";
+  if (!tutti.length) h = `<div class="vuoto">Nessun annuncio con questi filtri.</div>`;
+  if (nuovi.length) h += `<div class="sez">Nuovi (${nuovi.length})</div>` + nuovi.map(scheda).join("");
+  if (vecchi.length) h += (nuovi.length ? `<div class="sez">Già visti (${vecchi.length})</div>` : "") + vecchi.map(scheda).join("");
+  h += `<p class="perche">Criteri: fino a ${D.criteri.prezzo_max} €, almeno ${D.criteri.mq_min} m², ${D.criteri.locali.join(" o ")} locali, entro ${D.criteri.minuti_max} minuti di auto, durata non inferiore a 12 mesi.
+    Esclusi in questo giro: ${Object.entries(D.esclusi).map(([k, v]) => `${k} ${v}`).join(", ")}. Doppioni uniti: ${D.doppioni_uniti}.
+    ${D.stazione_sede ? `La stazione più vicina all'ufficio è ${esc(D.stazione_sede.nome)}, a ${D.stazione_sede.km} km in linea d'aria.` : ""}</p>`;
+  $("#lista").innerHTML = h;
+  disegnaMappa(tutti);
+}
+
+/* ---------- mappa ---------- */
+function initMappa(){
+  mappa = L.map("mappa", {zoomControl: true}).setView([D.sede.lat, D.sede.lon], 10);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "© OpenStreetMap"}).addTo(mappa);
+  L.marker([D.sede.lat, D.sede.lon], {icon: L.divIcon({className: "", html: '<span class="sede-ico">UFFICIO</span>', iconSize: [60, 20], iconAnchor: [30, 10]}), zIndexOffset: 1000})
+    .addTo(mappa).bindPopup(esc(D.sede.nome));
+  if (D.stazione_sede) L.circleMarker([D.stazione_sede.lat, D.stazione_sede.lon], {radius: 5, color: "#7a3f78", fillOpacity: 1}).addTo(mappa).bindPopup("Stazione " + esc(D.stazione_sede.nome));
+  strato = L.layerGroup().addTo(mappa);
+}
+function colore(a){ const s = decisione(a).s; return s === "tieni" ? "#2f7d4f" : s === "scarta" ? "#999" : nuovo(a) ? "#c98a12" : "#2357c6"; }
+function disegnaMappa(L_){
+  strato.clearLayers(); marker = {};
+  for (const a of L_) {
+    const m = L.circleMarker([a.lat, a.lon], {radius: a.coord === "indirizzo" ? 6 : 5, color: "#fff", weight: 2, fillColor: colore(a), fillOpacity: .95, dashArray: a.coord === "indirizzo" ? null : "2 2"});
+    m.bindPopup(`<div class="pop">${a.foto[0] ? `<img src="${esc(a.foto[0])}" referrerpolicy="no-referrer" alt="">` : ""}
+      <b>${a.prezzo} €</b> · ${a.mq ? a.mq + " m²" : ""} · ${a.locali ?? "?"} locali<br>${esc(a.comune || "")}<br>
+      ${a.minuti_auto} min in auto${a.giardino ? " · giardino" : ""}<br>
+      <a href="#" data-vai="${esc(a.id)}">Apri la scheda</a></div>`);
+    m.addTo(strato); marker[a.id] = m;
+  }
+}
+function vaiAllaScheda(id){
+  selezionato = id;
+  document.body.dataset.tab = "lista"; segnaTab();
+  disegna();
+  const el = document.getElementById("c-" + id);
+  if (el) el.scrollIntoView({behavior: "smooth", block: "start"});
+}
+function vaiSullaMappa(id){
+  const a = D.annunci.find(x => x.id === id); if (!a) return;
+  document.body.dataset.tab = "mappa"; segnaTab();
+  setTimeout(() => { mappa.invalidateSize(); mappa.setView([a.lat, a.lon], 14); marker[id] && marker[id].openPopup(); }, 50);
+}
+function segnaTab(){ document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === document.body.dataset.tab)); }
+
+/* ---------- eventi ---------- */
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.az !== undefined && t.dataset.id) { const a = D.annunci.find(x => x.id === t.dataset.id); decidi(a, "s", decisione(a).s === t.dataset.az ? "" : t.dataset.az); }
+  else if (t.dataset.desc) { const el = document.getElementById("d-" + t.dataset.desc); el.classList.toggle("aperta"); t.textContent = el.classList.contains("aperta") ? "Riduci" : "Leggi tutto"; }
+  else if (t.dataset.mappa) vaiSullaMappa(t.dataset.mappa);
+  else if (t.dataset.vai) { e.preventDefault(); vaiAllaScheda(t.dataset.vai); }
+  else if (t.dataset.t) { document.body.dataset.tab = t.dataset.t; segnaTab(); if (t.dataset.t === "mappa") setTimeout(() => mappa.invalidateSize(), 50); }
+  else if (t.parentElement && t.parentElement.id === "seg") { vista = t.dataset.v; disegna(); }
+});
+document.addEventListener("change", e => {
+  if (e.target.dataset.nota) { const a = D.annunci.find(x => x.id === e.target.dataset.nota); decidi(a, "nota", e.target.value); }
+});
+["#ordine", "#f-giardino", "#f-treno", "#f-durata", "#f-privati"].forEach(s => $(s).addEventListener("change", disegna));
+$("#cerca").addEventListener("input", disegna);
+$("#b-imp").addEventListener("click", () => { $("#token").value = ls.get("radar-token", ""); $("#d-imp").showModal(); });
+$("#salva-token").addEventListener("click", () => { ls.set("radar-token", $("#token").value.trim()); sync(); });
+$("#f-chiave").addEventListener("submit", e => { e.preventDefault(); $("#err").textContent = ""; apri($("#chiave").value.trim()); });
+
+const daHash = new URLSearchParams(location.hash.slice(1)).get("k");
+const salvata = daHash || ls.get("radar-chiave", "");
+if (salvata) apri(salvata, true);
+</script>
+</body>
+</html>
