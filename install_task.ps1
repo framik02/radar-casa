@@ -1,7 +1,7 @@
 # Registra i due giri giornalieri del radar casa (8:00 e 19:00).
 # Se a quell'ora il PC e' spento, il giro parte appena si riaccende.
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$py  = Join-Path $dir ".venv\Scripts\python.exe"
+$py  = Join-Path $dir ".venv\Scripts\pythonw.exe"
 $az  = New-ScheduledTaskAction -Execute $py -Argument "run.py" -WorkingDirectory $dir
 $tr  = @(
   New-ScheduledTaskTrigger -Daily -At 08:00

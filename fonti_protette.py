@@ -83,6 +83,9 @@ def idealista(pagina) -> tuple[list, dict]:
     annunci, esito = [], {"pagine": 0, "bloccata": False}
     _riscalda(pagina, "https://www.idealista.it/")
     for prov, _, _ in config.PROVINCE:
+        # Idealista chiama queste due province senza "-provincia"
+        prov = {"pesaro-urbino-provincia": "pesaro-urbino",
+                "forli-cesena-provincia": "forli-cesena"}.get(prov, prov)
         base = (f"https://www.idealista.it/affitto-case/{prov}/con-prezzo_{config.PREZZO_MAX},"
                 f"dimensione_{config.MQ_MIN}/")
         for n in range(1, 15):

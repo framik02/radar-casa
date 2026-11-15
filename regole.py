@@ -170,6 +170,12 @@ def unisci_doppioni(annunci: list[dict]) -> list[dict]:
         capo["altre_fonti"] = [{"fonte": x["fonte"], "url": x["url"], "id": x["id"],
                                 "telefono": x["telefono"], "inserzionista_nome": x["inserzionista_nome"]}
                                for x in g[1:]]
+        precisione = {"indirizzo": 3, "testo": 2, "zona": 1, "comune": 0}
+        migliore = max(g, key=lambda x: precisione.get(x["coord"], 0))
+        if precisione.get(migliore["coord"], 0) > precisione.get(capo["coord"], 0):
+            for k in ("lat", "lon", "coord", "indirizzo", "zona"):
+                capo[k] = migliore[k]
+            capo["fonte_indirizzo"] = f"annuncio su {migliore['fonte']}"
         for x in g[1:]:  # riempi i buchi del capo con gli altri
             for k in ("telefono", "spese", "classe_energetica", "piano", "riscaldamento",
                       "giardino", "arredato", "disponibilita", "pubblicato"):

@@ -70,48 +70,100 @@ def geocodifica_comuni(annunci: list[dict]) -> None:
 
 
 VIA = re.compile(
-    r"\b((?:via|viale|v\.le|piazza|p\.zza|piazzale|corso|largo|vicolo|strada|lungomare)"
-    r"\s+[A-ZÀ-Ú0-9][\w'À-ú\.]*(?:\s+(?:[A-ZÀ-Ú0-9][\w'À-ú\.]*|d[ei]|del|della|dei|degli|delle|di|da|e)){0,4})",
-    re.I)
+    r"\b((?i:via|viale|v\.le|piazza|p\.zza|piazzale|corso|largo|vicolo|strada|lungomare)"
+    r"\s+(?:(?:dell'|dall'|della\s+|delle\s+|dei\s+|degli\s+|del\s+|di\s+)?[A-ZÀ-Ú][\w'À-ú\.]*|\d{1,2}\s+[A-Z][a-zà-ú]+)"
+    r"(?:\s+(?:[A-ZÀ-Ú][\w'À-ú\.]*|d[ei]|del|dell'\w+|della|dei|degli|delle|di|da|e)){0,4})"
+    r"(?:\s*,?\s*(?:[nN]\.?\s*)?(\d{1,4}(?:\s*/?\s*[a-hA-H])?)\b"
+    r"(?!\s*(?i:mq|m2|m²|locali|camer|euro|€|mesi|piano|min)))?")
+PAROLE_NON_VIA = {"mare", "centro", "email", "whatsapp", "sms", "telefono", "mail", "messaggio"}
+
+
+def _geocodifica_via(cache: dict, via: str, civico: str | None, comune: str, provincia: str) -> list | None:
+    chiave = f"{via}|{civico or ''}|{comune}|{provincia}"
+    if chiave not in cache:
+        strada = f"{civico} {via}" if civico else via
+        q = urllib.parse.urlencode({"street": strada, "city": comune, "county": provincia,
+                                    "country": "Italia", "format": "json", "limit": 1})
+        try:
+            r = _json("https://nominatim.openstreetmap.org/search?" + q)
+        except Exception as e:
+            log.warning("nominatim via %s: %s", chiave, e)
+            return None
+        cache[chiave] = [float(r[0]["lat"]), float(r[0]["lon"]), r[0].get("addresstype") or r[0].get("type")] if r else None
+        cache["_cambiato"] = True
+        time.sleep(1.1)
+    return cache.get(chiave)
 
 
 def indirizzi_dal_testo(annunci: list[dict]) -> None:
-    """Se manca la via, la cerca nel testo e la geocodifica dentro il comune.
+    """Cerca via e civico nel titolo, nell'indirizzo o nel testo e li geocodifica.
 
-    Si accetta solo un risultato che cade entro 8 km dal centro del comune,
-    cosi' una "via Roma" non finisce in un'altra citta'.
+    Vale per chi ha solo il comune (risultato entro 8 km dal centro) e per chi
+    ha solo una zona (entro 3 km dal punto della zona), cosi' una "via Roma"
+    non finisce in un'altra citta'. Se c'e' il civico e Nominatim lo trova,
+    la posizione diventa esatta.
     """
     cache = _carica("vie.json")
     comuni = _carica("comuni.json")
-    cambiato = False
     for a in annunci:
-        if a["coord"] in ("indirizzo", "zona") or not a["comune"]:
+        if a["coord"] not in ("comune", "zona") or not a["comune"]:
             continue
-        m = VIA.search(f"{a['titolo']} . {a['descrizione']}")
+        testo = " . ".join(x for x in [a.get("indirizzo") or "", a["titolo"], a["descrizione"]] if x)
+        m = None
+        for cand in VIA.finditer(testo):
+            parole = cand.group(1).split()
+            if len(parole) >= 2 and parole[1].lower() not in PAROLE_NON_VIA:
+                m = cand
+                break
         if not m:
             continue
         via = re.sub(r"\s+", " ", m.group(1)).strip(" .")
-        if len(via.split()) < 2 or via.lower().split()[1] in ("mare", "centro", "email", "whatsapp", "sms"):
+        civico = re.sub(r"\s+", "", m.group(2)) if m.group(2) else None
+        prov = a["provincia"] or ""
+        c = _geocodifica_via(cache, via, civico, a["comune"], prov) if civico else None
+        esatto = bool(c and c[2] in ("house", "building", "place"))
+        if not esatto:
+            c = _geocodifica_via(cache, via, None, a["comune"], prov)
+        if not c:
             continue
-        chiave = f"{via}|{a['comune']}|{a['provincia'] or ''}"
-        if chiave not in cache:
-            q = urllib.parse.urlencode({"street": via, "city": a["comune"], "county": a["provincia"] or "",
-                                        "country": "Italia", "format": "json", "limit": 1})
+        if a["coord"] == "zona" and a["lat"] is not None:
+            rif, raggio = (a["lat"], a["lon"]), 3
+        else:
+            centro = comuni.get(f"{a['comune']}|{prov}")
+            rif, raggio = (centro[0], centro[1]) if centro else (c[0], c[1]), 8
+        if km(c[0], c[1], rif[0], rif[1]) > raggio:
+            continue
+        a["lat"], a["lon"] = c[0], c[1]
+        a["indirizzo"] = f"{via} {civico}" if esatto else via
+        a["coord"] = "indirizzo" if esatto else "testo"
+        a["fonte_indirizzo"] = "testo dell'annuncio"
+    if cache.pop("_cambiato", False):
+        _salva("vie.json", cache)
+
+
+def via_vicina(annunci: list[dict]) -> None:
+    """Per i punti approssimati scrive su che via cadono, come indicazione."""
+    cache = _carica("vicine.json")
+    cambiato = False
+    for a in annunci:
+        if a["coord"] != "zona" or a["lat"] is None:
+            continue
+        k = f"{a['lat']:.4f},{a['lon']:.4f}"
+        if k not in cache:
+            q = urllib.parse.urlencode({"lat": a["lat"], "lon": a["lon"], "format": "json", "zoom": 17})
             try:
-                r = _json("https://nominatim.openstreetmap.org/search?" + q)
-                cache[chiave] = [float(r[0]["lat"]), float(r[0]["lon"])] if r else None
+                r = _json("https://nominatim.openstreetmap.org/reverse?" + q)
+                ad = r.get("address") or {}
+                cache[k] = ad.get("road") or ad.get("pedestrian") or ad.get("square")
             except Exception as e:
-                log.warning("nominatim via %s: %s", chiave, e)
+                log.warning("nominatim inverso %s: %s", k, e)
                 continue
             cambiato = True
             time.sleep(1.1)
-        c, centro = cache.get(chiave), comuni.get(f"{a['comune']}|{a['provincia'] or ''}")
-        if c and (not centro or km(c[0], c[1], centro[0], centro[1]) <= 8):
-            a["lat"], a["lon"] = c
-            a["indirizzo"] = f"{via} (dal testo)"
-            a["coord"] = "testo"
+        if cache.get(k):
+            a["via_vicina"] = cache[k]
     if cambiato:
-        _salva("vie.json", cache)
+        _salva("vicine.json", cache)
 
 
 # ---------------------------------------------------------------- percorsi

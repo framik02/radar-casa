@@ -25,8 +25,8 @@ config.DATI.mkdir(exist_ok=True)
 config.LOG.mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)-6s %(message)s", datefmt="%H:%M:%S",
-    handlers=[logging.StreamHandler(sys.stdout),
-              logging.FileHandler(config.LOG / f"{datetime.now():%Y-%m-%d}.log", encoding="utf-8")])
+    handlers=([logging.StreamHandler(sys.stdout)] if sys.stdout else [])  # pythonw non ha console
+    + [logging.FileHandler(config.LOG / f"{datetime.now():%Y-%m-%d}.log", encoding="utf-8")])
 log = logging.getLogger("run")
 
 
@@ -62,20 +62,30 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-push", action="store_true")
     ap.add_argument("--solo-subito", action="store_true")
+    ap.add_argument("--senza-raccolta", action="store_true",
+                    help="rielabora l'archivio dell'ultimo giro senza scaricare")
     args = ap.parse_args()
     adesso = datetime.now().replace(microsecond=0)
     ora = adesso.isoformat()
+    pa = config.DATI / "archivio.json"
+    if args.senza_raccolta:
+        arch = json.loads(pa.read_text(encoding="utf-8"))
+        ora = max(v["ultimo"] for v in arch.values())
+        adesso = datetime.fromisoformat(ora)
 
     if not args.no_push:
         r = git("pull", "--rebase", "--autostash")
         if r.returncode:
             log.warning("git pull: %s", r.stderr.strip())
 
-    grezzi, esiti = raccogli(args.solo_subito)
+    if args.senza_raccolta:
+        grezzi = []
+        esiti = json.loads((config.DATI / "ultimo.json").read_text(encoding="utf-8"))["fonti"]
+    else:
+        grezzi, esiti = raccogli(args.solo_subito)
     log.info("raccolti %d annunci grezzi", len(grezzi))
 
     # archivio: quando l'abbiamo visto la prima e l'ultima volta
-    pa = config.DATI / "archivio.json"
     archivio = json.loads(pa.read_text(encoding="utf-8")) if pa.exists() else {}
     for a in grezzi:
         v = archivio.get(a["id"])
@@ -112,6 +122,11 @@ def main() -> None:
         else:
             tenuti.append(a)
     uniti = regole.unisci_doppioni(tenuti)
+    # l'unione puo' aver dato a una scheda una posizione migliore: ricalcolo
+    geo.tempi_in_auto(uniti)
+    geo.via_vicina(uniti)
+    for a in uniti:
+        geo.stazione_vicina(a, staz)
     primo = {a["id"]: a["primo_visto"] for a in tenuti}
     for a in uniti:
         a["primo_visto"] = min(primo[i] for i in a["ids"])

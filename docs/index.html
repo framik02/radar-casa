@@ -313,7 +313,12 @@ function scheda(a){
   ].join("");
   const fonti = [{fonte: a.fonte, url: a.url, telefono: a.telefono, inserzionista_nome: a.inserzionista_nome}, ...(a.altre_fonti || [])];
   const telefoni = [...new Set(fonti.flatMap(f => (f.telefono || "").split(",").map(t => t.trim()).filter(Boolean)))];
-  const posizione = a.coord === "indirizzo" ? (a.indirizzo || "indirizzo sul sito") : a.coord === "zona" ? (a.indirizzo ? a.indirizzo + ", zona indicativa" : "zona indicativa") : a.coord === "testo" ? a.indirizzo + ", posizione indicativa" : "solo il comune, posizione al centro del paese";
+  const posizione = {
+    indirizzo: "Indirizzo: " + (a.indirizzo || "sul sito") + (a.fonte_indirizzo ? " (da " + a.fonte_indirizzo + ")" : ""),
+    testo: "Via: " + a.indirizzo + ", civico non indicato" + (a.fonte_indirizzo ? " (da " + a.fonte_indirizzo + ")" : ""),
+    zona: "Zona indicativa" + (a.via_vicina ? ", il punto cade in " + a.via_vicina : "") + ". Via esatta da chiedere",
+    comune: "Solo il comune, via da chiedere",
+  }[a.coord] || "";
   const campi = [
     ["Superficie", a.mq ? a.mq + " m²" : "non indicata"], ["Locali", a.locali ?? "non indicati"],
     ["Bagni", a.bagni ?? "non indicati"], ["Piano", a.piano ?? "non indicato"],
