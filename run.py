@@ -20,6 +20,8 @@ import fonti
 import fonti_protette
 import geo
 import regole
+import statistiche
+import telegram_bot
 
 config.DATI.mkdir(exist_ok=True)
 config.LOG.mkdir(exist_ok=True)
@@ -121,6 +123,13 @@ def main() -> None:
             esclusi[motivo] += 1
         else:
             tenuti.append(a)
+    # per le statistiche: quali annunci rispettano i criteri
+    for a in vivi:
+        if a["id"] in archivio:
+            archivio[a["id"]]["utile"] = False
+    for a in tenuti:
+        archivio[a["id"]]["utile"] = True
+    pa.write_text(json.dumps(archivio, ensure_ascii=False), encoding="utf-8")
     uniti = regole.unisci_doppioni(tenuti)
     # l'unione puo' aver dato a una scheda una posizione migliore: ricalcolo
     geo.tempi_in_auto(uniti)
@@ -145,12 +154,19 @@ def main() -> None:
                     "locali": sorted(config.LOCALI_AMMESSI), "minuti_max": config.MINUTI_MAX},
         "fonti": esiti, "esclusi": dict(esclusi.most_common()),
         "doppioni_uniti": len(tenuti) - len(uniti), "annunci": uniti,
+        "statistiche": statistiche.calcola(archivio, ora),
     }
     (config.DATI / "ultimo.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     config.DOCS.mkdir(exist_ok=True)
     (config.DOCS / "dati.enc").write_text(cripta.cifra(out), encoding="utf-8")
     log.info("pubblicabili %d (doppioni uniti %d), esclusi %s", len(uniti),
              len(tenuti) - len(uniti), dict(esclusi))
+
+    if not args.senza_raccolta:
+        try:
+            telegram_bot.invia_nuovi(uniti, ora)
+        except Exception as ex:
+            log.warning("telegram: %s", ex)
 
     if not args.no_push:
         git("add", "docs/dati.enc")

@@ -67,10 +67,49 @@ def valuta_durata(a: dict) -> None:
         a["giardino"] = "privato" if re.search(r"giardino\s+(privato|esclusivo|di\s+propriet)", t) else "si"
     if a["posto_auto"] is None and re.search(r"posto\s+auto|garage|\bbox\b", t):
         a["posto_auto"] = True
+    clima_ed_energia(a, t)
     if a["spese"] is None:
         m = re.search(r"spese\s+(?:condominiali|condominio)?\s*(?:di|:)?\s*(?:€|euro)?\s*(\d{2,3})\s*(?:€|euro)?", t)
         if m:
             a["spese"] = int(m.group(1))
+
+
+# -------------------------------------------------- clima e classe energetica
+
+_CLIMA = r"(?:l')?(?:aria\s+condizionat\w*|impianto\s+di\s+(?:climatizzazione|condizionamento)|climatizza\w*|condizionator\w*|clima\b)"
+CLIMA_NO = rf"(?:senza|niente|no|non\s+(?:c'[eè]|ha|[eè]\s+(?:presente|dotat\w+\s+di)))\s+{_CLIMA}|{_CLIMA}\s*:\s*no\b|non\s+climatizzat"
+CLIMA_PREDISP = rf"predispost\w*\s+(?:per\s+)?{_CLIMA}|predisposizion\w*\s+(?:per\s+|dell?'?\s*|di\s+)?{_CLIMA}"
+CLIMA_SI = rf"{_CLIMA}|\bdual\s+split\b|\bsplit\b"
+ENERGIA = [r"classe\s+energetica\s*(?:[:\-]\s*)?(?:è\s+)?([a-g][1-4]?\+{0,3})(?![a-z0-9])",
+           r"\bape\s*(?:[:\-]\s*)?(?:classe\s+)?([a-g][1-4]?\+{0,3})(?![a-z0-9])",
+           r"\bclasse\s+([a-g][1-4]?\+{0,3})\s*(?:energetica|ape)\b"]
+
+
+def clima_ed_energia(a: dict, t: str) -> None:
+    """Aria condizionata: si, no, solo predisposizione o None se non si capisce."""
+    clima = None
+    for c in a.get("caratteristiche") or []:  # Subito: "aria condizionata: Sì/No"
+        m = re.match(r"aria condizionata:\s*(\w+)", str(c).lower())
+        if m:
+            clima = "si" if m.group(1).startswith("s") else "no"
+    if clima is None:
+        if re.search(CLIMA_NO, t):
+            clima = "no"
+        elif re.search(CLIMA_PREDISP, t):
+            resto = re.sub(CLIMA_PREDISP, " ", t)
+            clima = "si" if re.search(CLIMA_SI, resto) else "predisposizione"
+        elif re.search(CLIMA_SI, t):
+            clima = "si"
+    a["clima"] = clima
+    if not a.get("classe_energetica"):
+        for r in ENERGIA:
+            m = re.search(r, t)
+            if m:
+                a["classe_energetica"] = m.group(1).upper()
+                break
+        else:
+            if re.search(r"(?:ape|certificazione energetica|classe energetica)\s*(?::\s*)?in\s+(?:fase\s+di\s+)?(?:attesa|corso|definizione)", t):
+                a["classe_energetica"] = "In attesa di certificazione"
 
 
 # ------------------------------------------------------------------ filtri
@@ -178,7 +217,7 @@ def unisci_doppioni(annunci: list[dict]) -> list[dict]:
             capo["fonte_indirizzo"] = f"annuncio su {migliore['fonte']}"
         for x in g[1:]:  # riempi i buchi del capo con gli altri
             for k in ("telefono", "spese", "classe_energetica", "piano", "riscaldamento",
-                      "giardino", "arredato", "disponibilita", "pubblicato"):
+                      "giardino", "arredato", "disponibilita", "pubblicato", "clima"):
                 if capo.get(k) in (None, "") and x.get(k) not in (None, ""):
                     capo[k] = x[k]
             for f in x["foto"]:
