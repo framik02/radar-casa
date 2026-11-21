@@ -204,7 +204,7 @@ async function apri(frase, silenzioso){
     if (!silenzioso) $("#err").textContent = e.message === "dati non trovati" ? "Dati non ancora pubblicati." : "Frase sbagliata.";
     return;
   }
-  ls.set("radar-chiave", frase);
+  ls.set("radar-chiave", frase); fraseAperta = frase;
   if (location.hash) history.replaceState(null, "", location.pathname);
   $("#blocco").style.display = "none";
   $("#app").style.display = "flex";
@@ -217,6 +217,19 @@ async function apri(frase, silenzioso){
   disegna();
   caricaRemote();
 }
+
+// tornando sulla pagina (scheda riaperta, telefono sbloccato) riprende i dati
+// se nel frattempo c'e' stato un giro nuovo, cosi' tutti vedono la stessa lista
+let fraseAperta = "";
+async function riprendi(){
+  if (document.hidden || !D) return;
+  try {
+    const n = await decifra(fraseAperta);
+    if (n.aggiornato !== D.aggiornato) { D = n; inizioRadar = null; disegna(); }
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", riprendi);
+setInterval(riprendi, 15 * 60e3);
 
 /* ---------- decisioni ---------- */
 function decisione(a){
