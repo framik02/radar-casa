@@ -138,7 +138,7 @@ dialog p{font-size:14px;color:var(--muted)}
         <option value="punteggio">Priorità</option>
         <option value="minuti">Più vicini</option>
         <option value="prezzo">Prezzo</option>
-        <option value="recenti">Più recenti</option>
+        <option value="recenti">Pubblicati di recente</option>
       </select>
       <label class="chk"><input type="checkbox" id="f-giardino"> giardino</label>
       <label class="chk"><input type="checkbox" id="f-treno"> treno</label>
@@ -286,16 +286,28 @@ function visibili(){
     punteggio: (x, y) => y.punteggio - x.punteggio,
     minuti: (x, y) => x.minuti_auto - y.minuti_auto,
     prezzo: (x, y) => x.prezzo - y.prezzo,
-    recenti: (x, y) => (y.pubblicato || y.primo_visto).localeCompare(x.pubblicato || x.primo_visto),
+    recenti: (x, y) => (dataPubbl(y) || "0").localeCompare(dataPubbl(x) || "0")
+      || y.primo_visto.localeCompare(x.primo_visto),
   }[o];
   L.sort(cmp);
+  // in ordine di pubblicazione la lista e' una sola, dalla piu' recente
+  if (o === "recenti") return {nuovi: [], vecchi: L, tutti: L};
   const nuovi = L.filter(nuovo), vecchi = L.filter(a => !nuovo(a));
   return {nuovi, vecchi, tutti: L};
 }
 const nuovo = a => a.primo_visto >= sogliaNuovo;
+// data di pubblicazione: quella del portale se c'e', altrimenti il giorno in cui
+// il radar l'ha visto comparire. Chi c'era gia' al primo giro non ha data.
+let inizioRadar = null;
+function dataPubbl(a){
+  if (a.pubblicato) return a.pubblicato.replace(" ", "T");
+  if (inizioRadar === null) inizioRadar = D.annunci.reduce((m, x) => x.primo_visto < m ? x.primo_visto : m, "9999").slice(0, 10);
+  return a.primo_visto.slice(0, 10) > inizioRadar ? a.primo_visto : null;
+}
 
 /* ---------- lista ---------- */
 function fmtData(s){ if (!s) return ""; const d = new Date(s.replace(" ", "T")); return d.toLocaleDateString("it-IT", {day:"numeric", month:"short"}) + " " + d.toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"}); }
+function fmtGiorno(s){ return s ? new Date(s.slice(0, 10) + "T12:00").toLocaleDateString("it-IT", {day:"numeric", month:"short"}) : ""; }
 function sino(v){ return v === true ? "sì" : v === false ? "no" : "non indicato"; }
 
 function scheda(a){
@@ -326,7 +338,7 @@ function scheda(a){
     ["Posto auto", a.posto_auto ? "sì" : "non indicato"], ["Balcone o terrazzo", a.balcone || a.terrazzo ? "sì" : "non indicato"],
     ["Riscaldamento", a.riscaldamento ?? "non indicato"], ["Classe energetica", a.classe_energetica ?? "non indicata"],
     ["Stato", a.stato_immobile ?? "non indicato"], ["Disponibilità", a.disponibilita ?? "non indicata"],
-    ["Tipologia", a.tipologia ?? ""], ["Pubblicato", a.pubblicato ? fmtData(a.pubblicato) : "visto il " + fmtData(a.primo_visto)],
+    ["Tipologia", a.tipologia ?? ""], ["Pubblicato", a.pubblicato ? fmtGiorno(a.pubblicato) : dataPubbl(a) ? "comparso il " + fmtGiorno(a.primo_visto) : "prima del " + fmtGiorno(a.primo_visto) + ", data non indicata"],
   ];
   return `<article class="card ${s || ""} ${selezionato === a.id ? "sel" : ""}" id="c-${esc(a.id)}">
     ${foto}

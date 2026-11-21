@@ -165,6 +165,12 @@ def bakeca(pagina) -> tuple[list, dict]:
                 return annunci, esito
             if "/offro-casa/" not in pagina.url:
                 break  # sottodominio che non esiste
+            # la data sta solo nella scheda della lista, non nel JSON-LD
+            date = {}
+            for m in re.finditer(r'<a [^>]*href="([^"]+)"(.*?)</a>', html, re.S):
+                d = re.search(r'<span class="uppercase text-sm">(\d\d)/(\d\d)/(\d{4})</span>', m.group(2))
+                if d:
+                    date[m.group(1)] = f"{d[3]}-{d[2]}-{d[1]}"
             nuovi = 0
             for blocco in re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S):
                 try:
@@ -177,6 +183,7 @@ def bakeca(pagina) -> tuple[list, dict]:
                 if a["id"] in visti:
                     continue
                 visti.add(a["id"])
+                a["pubblicato"] = date.get(a["url"])
                 annunci.append(a)
                 nuovi += 1
             esito["pagine"] += 1
