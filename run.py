@@ -10,7 +10,10 @@ import argparse
 import json
 import logging
 import subprocess
+import os
 import sys
+import threading
+import time
 from collections import Counter
 from datetime import datetime, timedelta
 
@@ -51,6 +54,41 @@ def aspetta_rete(minuti: int = 15) -> bool:
     return False
 
 
+BLOCCATI = []  # fonti abbandonate perché ferme: a fine giro si chiude il processo
+
+
+def fonte_isolata(nome: str, fn, minuti: int = 30) -> tuple[list, dict]:
+    """Ogni portale gira nel suo browser e in un thread a parte. Se Camoufox si
+    pianta (succede dopo un timeout di pagina) il portale si abbandona e il giro
+    continua con gli altri."""
+    ris: dict = {}
+
+    def lavoro():
+        from camoufox.sync_api import Camoufox
+        try:
+            with Camoufox(headless=True, humanize=True, locale="it-IT", os="windows") as browser:
+                ris["r"] = fn(browser.new_page())
+        except Exception as ex:
+            if "r" not in ris:
+                log.exception(nome); ris["err"] = str(ex)
+
+    t = threading.Thread(target=lavoro, daemon=True, name=nome)
+    t.start()
+    fine = time.monotonic() + minuti * 60
+    while t.is_alive() and "r" not in ris and time.monotonic() < fine:
+        t.join(5)
+    if "r" in ris:
+        if t.is_alive():  # dati presi, ma il browser non si chiude
+            BLOCCATI.append(nome)
+        a, e = ris["r"]
+        return a, e | {"annunci": len(a)}
+    if t.is_alive():
+        log.error("%s fermo da oltre %d minuti, abbandonato", nome, minuti)
+        BLOCCATI.append(nome)
+        return [], {"bloccata": True, "errore": f"fermo da oltre {minuti} minuti"}
+    return [], {"bloccata": True, "errore": ris.get("err", "?")}
+
+
 def raccogli(solo_subito: bool) -> tuple[list[dict], dict]:
     grezzi, esiti = [], {}
     try:
@@ -60,18 +98,10 @@ def raccogli(solo_subito: bool) -> tuple[list[dict], dict]:
         log.exception("subito"); esiti["subito"] = {"bloccata": True, "errore": str(ex)}
     if solo_subito:
         return grezzi, esiti
-    from camoufox.sync_api import Camoufox
-    with Camoufox(headless=True, humanize=True, locale="it-IT", os="windows") as browser:
-        for nome, fn in (("immobiliare", fonti.immobiliare), ("casa", fonti.casa),
-                         ("idealista", fonti_protette.idealista), ("bakeca", fonti_protette.bakeca)):
-            pagina = browser.new_page()
-            try:
-                a, e = fn(pagina)
-                grezzi += a; esiti[nome] = e | {"annunci": len(a)}
-            except Exception as ex:
-                log.exception(nome); esiti[nome] = {"bloccata": True, "errore": str(ex)}
-            finally:
-                pagina.close()
+    for nome, fn in (("immobiliare", fonti.immobiliare), ("casa", fonti.casa),
+                     ("idealista", fonti_protette.idealista), ("bakeca", fonti_protette.bakeca)):
+        a, e = fonte_isolata(nome, fn)
+        grezzi += a; esiti[nome] = e
     return grezzi, esiti
 
 
@@ -200,3 +230,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    if BLOCCATI:  # i browser piantati tengono vivo il processo: si chiude tutto l'albero
+        logging.shutdown()
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(os.getpid())], capture_output=True)

@@ -125,7 +125,12 @@ def immobiliare(pagina) -> tuple[list, dict]:
             url = (f"https://www.immobiliare.it/affitto-case/{prov}/?prezzoMassimo="
                    f"{config.PREZZO_MAX}&superficieMinima={config.MQ_MIN}"
                    + (f"&pag={pag}" if pag > 1 else ""))
-            r = pagina.goto(url, timeout=60000, wait_until="domcontentloaded")
+            try:
+                r = pagina.goto(url, timeout=60000, wait_until="domcontentloaded")
+            except Exception as ex:
+                log.warning("immobiliare %s pag %d saltata: %s", prov, pag, str(ex).splitlines()[0])
+                esito["saltate"] = esito.get("saltate", 0) + 1
+                break
             time.sleep(3)
             d = _next_data(pagina.content())
             if not d:
@@ -195,8 +200,13 @@ def casa(pagina) -> tuple[list, dict]:
         pag, tot = 1, 1
         base = None
         while pag <= tot:
-            r = pagina.goto(url if pag == 1 else f"{base}&page={pag}",
-                            timeout=60000, wait_until="domcontentloaded")
+            try:
+                r = pagina.goto(url if pag == 1 else f"{base}&page={pag}",
+                                timeout=60000, wait_until="domcontentloaded")
+            except Exception as ex:
+                log.warning("casa %s pag %d saltata: %s", prov, pag, str(ex).splitlines()[0])
+                esito["saltate"] = esito.get("saltate", 0) + 1
+                break
             time.sleep(3)
             s = _casa_stato(pagina.content())
             if not s:
