@@ -36,6 +36,21 @@ def git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], cwd=config.RADICE, capture_output=True, text=True)
 
 
+def aspetta_rete(minuti: int = 15) -> bool:
+    """Al risveglio dalla sospensione il Wi-Fi arriva dopo qualche minuto."""
+    import socket
+    import time
+    for i in range(minuti * 2):
+        try:
+            socket.create_connection(("github.com", 443), timeout=5).close()
+            return True
+        except OSError:
+            if i == 0:
+                log.info("rete assente, aspetto fino a %d minuti", minuti)
+            time.sleep(30)
+    return False
+
+
 def raccogli(solo_subito: bool) -> tuple[list[dict], dict]:
     grezzi, esiti = [], {}
     try:
@@ -75,6 +90,10 @@ def main() -> None:
         ora = max(v["ultimo"] for v in arch.values())
         adesso = datetime.fromisoformat(ora)
 
+    if not args.senza_raccolta and not aspetta_rete():
+        log.error("niente rete dopo 15 minuti, giro annullato")
+        return
+
     if not args.no_push:
         r = git("pull", "--rebase", "--autostash")
         if r.returncode:
@@ -86,6 +105,9 @@ def main() -> None:
     else:
         grezzi, esiti = raccogli(args.solo_subito)
     log.info("raccolti %d annunci grezzi", len(grezzi))
+    if not args.senza_raccolta and not grezzi:
+        log.error("nessun annuncio da nessun portale, giro annullato senza pubblicare")
+        return
 
     # archivio: quando l'abbiamo visto la prima e l'ultima volta
     archivio = json.loads(pa.read_text(encoding="utf-8")) if pa.exists() else {}
