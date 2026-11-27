@@ -46,6 +46,7 @@ def iscrizioni() -> dict:
     st = _stato()
     frase = cripta.chiave().strip().lower()
     r = _api("getUpdates", offset=st["offset"], timeout=0)
+    richieste = []
     for u in r.get("result", []):
         st["offset"] = u["update_id"] + 1
         m = u.get("message") or {}
@@ -58,8 +59,45 @@ def iscrizioni() -> dict:
             log.info("telegram: iscritta la chat %s", chat)
         elif chat not in st["chat"]:
             _api("sendMessage", chat_id=chat, text="Scrivimi la frase segreta della dashboard per ricevere gli annunci.")
-    PA.write_text(json.dumps(st), encoding="utf-8")
+        elif "aggiorna" in testo:
+            if chat not in richieste:
+                richieste.append(chat)
+        else:
+            _api("sendMessage", chat_id=chat, text="Scrivi /aggiorna per far partire un giro adesso.")
+    _salva(st)
+    st["_richieste"] = richieste
     return st
+
+
+def _salva(st: dict) -> None:
+    PA.write_text(json.dumps({k: v for k, v in st.items() if not k.startswith("_")}), encoding="utf-8")
+
+
+def scrivi(chat: list, testo: str) -> None:
+    for c in chat:
+        try:
+            _api("sendMessage", chat_id=c, text=testo)
+        except Exception as ex:
+            log.warning("telegram invio a %s: %s", c, ex)
+
+
+def accoda_avviso(chat: list) -> None:
+    """Chi ha chiesto un giro riceve un messaggio a fine giro anche se non c'è niente di nuovo."""
+    if not chat:
+        return
+    st = _stato()
+    st["da_avvisare"] = sorted(set(st.get("da_avvisare", [])) | set(chat))
+    _salva(st)
+
+
+def fine_giro(n_nuovi: int) -> None:
+    st = _stato()
+    chi = st.pop("da_avvisare", [])
+    if not chi:
+        return
+    _salva(st)
+    scrivi(chi, "Giro finito, nessun annuncio nuovo." if n_nuovi == 0 else
+           f"Giro finito, {n_nuovi} annunci nuovi qui sopra.")
 
 
 def _riga(a: dict) -> str:
@@ -85,19 +123,20 @@ def _riga(a: dict) -> str:
     return " · ".join(pezzi) + (f"\n{e(', '.join(extra))}" if extra else "") + tel + "\n" + " · ".join(link)
 
 
-def invia_nuovi(annunci: list[dict], ora: str) -> None:
+def invia_nuovi(annunci: list[dict], ora: str) -> int:
     if not _env("TELEGRAM_TOKEN"):
-        return
+        return 0
     try:
         st = iscrizioni()
     except Exception as ex:
-        log.warning("telegram getUpdates: %s", ex); return
+        log.warning("telegram getUpdates: %s", ex); return 0
+    accoda_avviso(st["_richieste"])
     if not st["chat"]:
-        log.info("telegram: nessuna chat iscritta"); return
+        log.info("telegram: nessuna chat iscritta"); return 0
     gia = set(st["inviati"])
     nuovi = [a for a in annunci if a["primo_visto"] == ora and not set(a["ids"]) & gia]
     if not nuovi:
-        return
+        return 0
     nuovi.sort(key=lambda a: -a["punteggio"])
     blocchi, corrente = [], f"<b>{len(nuovi)} annunci nuovi</b> nel radar\n"
     for a in nuovi:
@@ -112,9 +151,11 @@ def invia_nuovi(annunci: list[dict], ora: str) -> None:
                 _api("sendMessage", chat_id=chat, text=b, parse_mode="HTML", disable_web_page_preview="true")
             except Exception as ex:
                 log.warning("telegram invio a %s: %s", chat, ex)
+    st = _stato()
     st["inviati"] = (st["inviati"] + [i for a in nuovi for i in a["ids"]])[-5000:]
-    PA.write_text(json.dumps(st), encoding="utf-8")
+    _salva(st)
     log.info("telegram: %d annunci nuovi a %d chat", len(nuovi), len(st["chat"]))
+    return len(nuovi)
 
 
 if __name__ == "__main__":

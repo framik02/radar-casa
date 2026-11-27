@@ -161,7 +161,8 @@ dialog p{font-size:14px;color:var(--muted)}
     <div class="riga1">
       <h1>Radar casa</h1>
       <span class="meta" id="meta"></span>
-      <button class="btn" id="b-stat" style="margin-left:auto">Statistiche</button>
+      <button class="btn pri" id="b-agg" style="margin-left:auto">Aggiorna</button>
+      <button class="btn" id="b-stat">Statistiche</button>
       <button class="btn" id="b-imp">Sincronizza</button>
     </div>
     <div class="ctrl">
@@ -205,6 +206,17 @@ dialog p{font-size:14px;color:var(--muted)}
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn" value="annulla">Chiudi</button>
       <button class="btn pri" id="salva-token" value="ok">Salva</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="d-agg">
+  <form method="dialog">
+    <h3 style="margin-top:0">Aggiornare gli annunci</h3>
+    <p id="agg-testo"></p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn" value="chiudi">Chiudi</button>
+      <a class="btn pri" id="agg-tg" href="https://t.me/Radarrr_Casa_bot?start=aggiorna" target="_blank" rel="noopener" style="display:none;text-decoration:none">Chiedi al bot</a>
     </div>
   </form>
 </dialog>
@@ -661,6 +673,37 @@ document.addEventListener("change", e => {
 });
 ["#ordine", "#f-giardino", "#f-treno", "#f-durata", "#f-privati"].forEach(s => $(s).addEventListener("change", disegna));
 $("#cerca").addEventListener("input", disegna);
+async function chiediGiro(){
+  const t = $("#agg-testo"), tgl = $("#agg-tg");
+  tgl.style.display = "none";
+  t.textContent = "Ricarico i dati...";
+  $("#d-agg").showModal();
+  try { const n = await scarica(); if (n.aggiornato !== D.aggiornato) { D = n; inizioRadar = null; disegna(); } } catch {}
+  const quando = new Date(D.aggiornato).toLocaleString("it-IT", {weekday:"long", hour:"2-digit", minute:"2-digit"});
+  const token = ls.get("radar-token", "");
+  if (!token) {
+    t.textContent = `Ultimo giro ${quando}. Per farne partire uno adesso tocca Chiedi al bot e invia /aggiorna. Il PC parte entro 5 minuti e il giro dura circa 20. Con il token di Sincronizza basta questo tasto.`;
+    tgl.style.display = "";
+    return;
+  }
+  const api = `https://api.github.com/repos/${REPO}/contents/docs/richiesta.json`;
+  const h = {Authorization: "Bearer " + token, Accept: "application/vnd.github+json"};
+  try {
+    let sha;
+    const g = await fetch(api + "?ref=main&t=" + Date.now(), {headers: h, cache: "no-store"});
+    if (g.ok) sha = (await g.json()).sha;
+    const content = btoa(JSON.stringify({t: Date.now()}));
+    const p = await fetch(api, {method: "PUT", headers: h, body: JSON.stringify({message: "Chiede un giro", content, sha, branch: "main"})});
+    if (!p.ok) throw new Error("GitHub ha risposto " + p.status);
+    t.textContent = `Richiesta inviata. Ultimo giro ${quando}. Il PC parte entro 5 minuti e il giro dura circa 20, poi la pagina si aggiorna da sola e il bot manda gli annunci nuovi. Il PC deve essere acceso.`;
+    const fine = Date.now() + 45 * 60e3;
+    const giro = setInterval(() => { if (Date.now() > fine) clearInterval(giro); else riprendi(); }, 2 * 60e3);
+  } catch (e) {
+    t.textContent = "Richiesta non riuscita (" + e.message + "). Tocca Chiedi al bot e invia /aggiorna.";
+    tgl.style.display = "";
+  }
+}
+$("#b-agg").addEventListener("click", chiediGiro);
 $("#b-stat").addEventListener("click", () => { statistiche(); $("#d-stat").showModal(); });
 $("#chiudi-stat").addEventListener("click", () => { $("#d-stat").close(); $("#tip").style.display = "none"; });
 $("#b-imp").addEventListener("click", () => { $("#token").value = ls.get("radar-token", ""); $("#d-imp").showModal(); });

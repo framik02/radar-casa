@@ -30,6 +30,7 @@ SUBITO_CATEGORIE = ["appartamenti", "ville-singole-e-a-schiera"]
 
 PAUSA_PAGINE = (4.0, 8.0)        # secondi fra una pagina e l'altra
 GIORNI_SPARITO = 3               # dopo quanti giorni fuori linea si toglie
+GIORNI_MAX = 14  # annunci più vecchi di così non si mostrano
 
 UA_SEMPLICE = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) "
                "Gecko/20100101 Firefox/135.0")

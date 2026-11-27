@@ -192,6 +192,13 @@ def main() -> None:
     for a in uniti:
         a["primo_visto"] = min(primo[i] for i in a["ids"])
         regole.punteggio(a)
+    # via gli annunci di oltre due settimane: data di pubblicazione se il portale
+    # la dà, altrimenti il primo giro in cui il radar li ha visti
+    vecchio = (adesso - timedelta(days=config.GIORNI_MAX)).isoformat()
+    n = len(uniti)
+    uniti = [a for a in uniti if (a.get("pubblicato") or a["primo_visto"]) >= vecchio]
+    if n - len(uniti):
+        esclusi["più vecchio di 2 settimane"] = n - len(uniti)
     uniti.sort(key=lambda a: -a["punteggio"])
 
     sede_staz = None
@@ -216,7 +223,7 @@ def main() -> None:
 
     if not args.senza_raccolta:
         try:
-            telegram_bot.invia_nuovi(uniti, ora)
+            telegram_bot.fine_giro(telegram_bot.invia_nuovi(uniti, ora))
         except Exception as ex:
             log.warning("telegram: %s", ex)
 
