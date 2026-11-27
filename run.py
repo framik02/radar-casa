@@ -210,7 +210,7 @@ def main() -> None:
     }
     (config.DATI / "ultimo.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     config.DOCS.mkdir(exist_ok=True)
-    (config.DOCS / "dati.enc").write_text(cripta.cifra(out), encoding="utf-8")
+    (config.DOCS / "dati.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     log.info("pubblicabili %d (doppioni uniti %d), esclusi %s", len(uniti),
              len(tenuti) - len(uniti), dict(esclusi))
 
@@ -221,7 +221,7 @@ def main() -> None:
             log.warning("telegram: %s", ex)
 
     if not args.no_push:
-        git("add", "docs/dati.enc")
+        git("add", "docs/dati.json")
         r = git("commit", "-m", f"Radar {adesso:%Y-%m-%d %H:%M}: {len(uniti)} annunci")
         if r.returncode == 0:
             r = git("push")

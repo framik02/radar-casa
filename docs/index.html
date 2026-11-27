@@ -151,10 +151,8 @@ dialog p{font-size:14px;color:var(--muted)}
 <div id="blocco">
   <form id="f-chiave">
     <h1>Radar casa</h1>
-    <p>Gli annunci sono cifrati. Scrivi la frase segreta, il browser la ricorda.</p>
-    <input id="chiave" type="password" autocomplete="current-password" placeholder="frase segreta" required>
+    <p>Carico gli annunci.</p>
     <div class="err" id="err"></div>
-    <button class="btn pri" type="submit">Apri</button>
   </form>
 </div>
 
@@ -239,25 +237,19 @@ const NOMI_FONTE = {immobiliare:"Immobiliare.it", casa:"Casa.it", subito:"Subito
 
 let D = null, decisioni = {}, vista = "aperti", selezionato = null, mappa, strato, marker = {}, sogliaNuovo = "";
 
-async function decifra(frase){
-  const r = await fetch("dati.enc?t=" + Date.now(), {cache:"no-store"});
+async function scarica(){
+  const r = await fetch("dati.json?t=" + Date.now(), {cache:"no-store"});
   if (!r.ok) throw new Error("dati non trovati");
-  const e = await r.json();
-  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(frase), "PBKDF2", false, ["deriveKey"]);
-  const k = await crypto.subtle.deriveKey({name:"PBKDF2", hash:"SHA-256", salt:b64(e.salt), iterations:e.iter},
-    base, {name:"AES-GCM", length:256}, false, ["decrypt"]);
-  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64(e.iv)}, k, b64(e.ct));
-  return JSON.parse(new TextDecoder().decode(pt));
+  return r.json();
 }
 
-async function apri(frase, silenzioso){
+async function apri(){
   try {
-    D = await decifra(frase);
+    D = await scarica();
   } catch (e) {
-    if (!silenzioso) $("#err").textContent = e.message === "dati non trovati" ? "Dati non ancora pubblicati." : "Frase sbagliata.";
+    $("#err").textContent = "Dati non ancora pubblicati. Riprova fra poco.";
     return;
   }
-  ls.set("radar-chiave", frase); fraseAperta = frase;
   if (location.hash) history.replaceState(null, "", location.pathname);
   $("#blocco").style.display = "none";
   $("#app").style.display = "flex";
@@ -273,11 +265,10 @@ async function apri(frase, silenzioso){
 
 // tornando sulla pagina (scheda riaperta, telefono sbloccato) riprende i dati
 // se nel frattempo c'e' stato un giro nuovo, cosi' tutti vedono la stessa lista
-let fraseAperta = "";
 async function riprendi(){
   if (document.hidden || !D) return;
   try {
-    const n = await decifra(fraseAperta);
+    const n = await scarica();
     if (n.aggiornato !== D.aggiornato) { D = n; inizioRadar = null; disegna(); }
   } catch (e) {}
 }
@@ -674,11 +665,7 @@ $("#b-stat").addEventListener("click", () => { statistiche(); $("#d-stat").showM
 $("#chiudi-stat").addEventListener("click", () => { $("#d-stat").close(); $("#tip").style.display = "none"; });
 $("#b-imp").addEventListener("click", () => { $("#token").value = ls.get("radar-token", ""); $("#d-imp").showModal(); });
 $("#salva-token").addEventListener("click", () => { ls.set("radar-token", $("#token").value.trim()); sync(); });
-$("#f-chiave").addEventListener("submit", e => { e.preventDefault(); $("#err").textContent = ""; apri($("#chiave").value.trim()); });
-
-const daHash = new URLSearchParams(location.hash.slice(1)).get("k");
-const salvata = daHash || ls.get("radar-chiave", "");
-if (salvata) apri(salvata, true);
+apri();
 </script>
 </body>
 </html>
