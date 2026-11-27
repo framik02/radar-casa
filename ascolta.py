@@ -42,7 +42,8 @@ def giro_in_corso() -> bool:
 
 
 def main() -> None:
-    st = json.loads(PA.read_text(encoding="utf-8")) if PA.exists() else {"github_t": 0}
+    # al primo avvio le richieste già presenti non fanno partire niente
+    st = json.loads(PA.read_text(encoding="utf-8")) if PA.exists() else {"github_t": int(time.time() * 1000)}
     chi = []
     try:
         chi = tg.iscrizioni()["_richieste"]
@@ -50,11 +51,9 @@ def main() -> None:
         log.warning("telegram: %s", ex)
     t = richiesta_github()
     if t > st["github_t"]:
-        primo = st["github_t"] == 0
-        st["github_t"] = t
-        PA.write_text(json.dumps(st), encoding="utf-8")
-        if not primo:  # al primo avvio una richiesta vecchia non fa partire niente
-            chi.append("dashboard")
+        chi.append("dashboard")
+    st["github_t"] = max(t, st["github_t"])
+    PA.write_text(json.dumps(st), encoding="utf-8")
     if not chi:
         return
     chat = [c for c in chi if c != "dashboard"]
